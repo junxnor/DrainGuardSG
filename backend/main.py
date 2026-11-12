@@ -3,11 +3,12 @@ DrainGuard Singapore - FastAPI Backend
 Main application entry point
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
 import logging
+import os
 from pathlib import Path
 
 # Configure logging
@@ -34,6 +35,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add middleware to strip /api prefix from requests
+@app.middleware("http")
+async def strip_api_prefix(request: Request, call_next):
+    """
+    Strip /api prefix from incoming requests
+    Vercel routes /api/* to this service, but FastAPI routes don't have /api prefix
+    """
+    path = request.url.path
+    if path.startswith("/api/"):
+        # Remove /api prefix: /api/sensors -> /sensors
+        request.scope["path"] = path[4:]
+    elif path == "/api":
+        # Root API path: /api -> /
+        request.scope["path"] = "/"
+    
+    response = await call_next(request)
+    return response
 
 # Import routers
 from routers import rainfall, stations, sensors, risk, recommendations
@@ -68,14 +87,15 @@ async def root():
 async def startup_event():
     """Initialize services on startup"""
     logger.info("Starting DrainGuard Singapore API for Vercel...")
+    logger.info(f"DATABASE_URL configured: {bool(os.getenv('DATABASE_URL'))}")
     
-    # Initialize in-memory database
+    # Initialize database
     from database import init_database
     try:
         await init_database()
-        logger.info("In-memory database initialized successfully")
+        logger.info("Database initialized successfully")
     except Exception as e:
-        logger.warning(f"Non-critical: Failed to initialize database: {e}")
+        logger.warning(f"Database initialization issue: {e}")
     
     logger.info("DrainGuard Singapore API started successfully")
 

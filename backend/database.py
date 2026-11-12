@@ -11,8 +11,15 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, String, Float, Integer, DateTime, Text, select, func
 from dotenv import load_dotenv
-from static_data import STATIONS_DATA, SENSORS_DATA
 import random
+import math
+
+# Import static data only if needed for fallback
+try:
+    from static_data import STATIONS_DATA, SENSORS_DATA
+except ImportError:
+    STATIONS_DATA = []
+    SENSORS_DATA = []
 
 # Load environment variables
 load_dotenv()
@@ -57,6 +64,15 @@ class Sensor(Base):
     latitude = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class PubWaterLevelSensor(Base):
+    """Model for the pub_water_level_sensors table (328 sensors)"""
+    __tablename__ = "pub_water_level_sensors"
+    
+    station_id = Column("Station ID", String, primary_key=True)
+    station_name = Column("Station Name", String, nullable=False)
+    x = Column("X", Float)  # SVY21 X coordinate
+    y = Column("Y", Float)  # SVY21 Y coordinate
+
 class RainfallReading(Base):
     __tablename__ = "rainfall_readings"
     
@@ -69,6 +85,24 @@ class RainfallReading(Base):
     reading_value = Column(Float, nullable=False, index=True)
     reading_unit = Column(String, default="mm")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+def svy21_to_wgs84(x: float, y: float) -> tuple[float, float]:
+    """
+    Convert SVY21 coordinates to WGS84 (latitude, longitude)
+    Simplified conversion for Singapore region
+    """
+    # Singapore region conversion constants
+    lat_origin = 1.366666  # Singapore latitude origin
+    lon_origin = 103.833333  # Singapore longitude origin
+    
+    # Approximate conversion (meters to degrees)
+    # 1 degree latitude ≈ 111,320 meters
+    # 1 degree longitude ≈ 111,320 * cos(latitude) meters
+    
+    lat = lat_origin + (y - 38744.572) / 111320
+    lon = lon_origin + (x - 28001.642) / (111320 * math.cos(math.radians(lat_origin)))
+    
+    return lon, lat
 
 async def init_database():
     """Initialize database and create tables"""
@@ -237,14 +271,41 @@ async def get_all_stations() -> List[Dict[str, Any]]:
         return []
 
 async def get_all_sensors() -> List[Dict[str, Any]]:
-    """Get all PUB sensors"""
+    """Get all PUB water level sensors from pub_water_level_sensors table (328 sensors)"""
     if not USE_DATABASE:
         return SENSORS_DATA
     
     try:
         async with AsyncSessionLocal() as session:
+            # Query the pub_water_level_sensors table with 328 sensors
+            result = await session.execute(
+                select(PubWaterLevelSensor).order_by(PubWaterLevelSensor.station_id)
+            )
+            pub_sensors = result.scalars().all()
+            
+            # Convert SVY21 coordinates to WGS84 and format response
+            sensors_list = []
+            for s in pub_sensors:
+                lon, lat = svy21_to_wgs84(s.x, s.y)
+                sensors_list.append({
+                    "station_id": s.station_id,
+                    "station_name": s.station_name,
+                    "x_svy21": s.x,
+                    "y_svy21": s.y,
+                    "longitude": lon,
+                    "latitude": lat
+                })
+            
+            logger.info(f"Retrieved {len(sensors_list)} sensors from pub_water_level_sensors table")
+            return sensors_list
+            
+    except Exception as e:
+        logger.error(f"Failed to get sensors from pub_water_level_sensors: {e}")
+        # Fallback to old sensors table if pub table fails
+        try:
             result = await session.execute(select(Sensor).order_by(Sensor.station_id))
             sensors = result.scalars().all()
+            logger.warning(f"Falling back to sensors table: {len(sensors)} sensors")
             return [
                 {
                     "station_id": s.station_id,
@@ -256,9 +317,9 @@ async def get_all_sensors() -> List[Dict[str, Any]]:
                 }
                 for s in sensors
             ]
-    except Exception as e:
-        logger.error(f"Failed to get sensors: {e}")
-        return []
+        except Exception as e2:
+            logger.error(f"Fallback also failed: {e2}")
+            return []
 
 async def get_latest_rainfall(limit: int = 100) -> List[Dict[str, Any]]:
     """Get latest rainfall readings"""
