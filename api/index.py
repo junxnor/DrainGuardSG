@@ -9,12 +9,8 @@ backend_path = Path(__file__).parent.parent / "backend"
 sys.path.insert(0, str(backend_path))
 
 from mangum import Mangum
-from fastapi import FastAPI
-from main import app as backend_app
+from main import app
 
-# Create wrapper that mounts backend at /api
-app = FastAPI()
-app.mount("/api", backend_app)
-
-# Wrap for Vercel
-handler = Mangum(app, lifespan="off")
+# Wrap the backend app directly (no mounting needed)
+# Vercel routes /api/* to this function, and we handle the path from there
+handler = Mangum(app, lifespan="off", api_gateway_base_path="/api")
