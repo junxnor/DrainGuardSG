@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08131f">
+  <title>DrainGuard | Klang Valley demo</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#overview"><span class="logo">DG</span><span><b>DrainGuard</b><small>Flood outlook prototype</small></span></a>
+      <div class="section-label">DASHBOARD</div>
+      <nav aria-label="Dashboard sections">
+        <a class="active" data-page="overview" href="#overview">Overview</a>
+        <a data-page="rainfall" href="#rainfall">Rainfall monitoring</a>
+        <a data-page="water" href="#water">Water-level monitoring</a>
+      </nav>
+      <div class="sidebar-note"><b>Historical demo data</b><small>Five-day rainfall history<br>07-11 Nov 2026</small></div>
+      <small class="version">DRAINGUARD | DEMONSTRATION PROTOTYPE</small>
+    </aside>
+
+    <main class="main">
+      <header>
+        <button id="mobileMenu" class="mobile" aria-label="Open menu">Menu</button>
+        <div><div class="crumb">DASHBOARD <span>/</span> <b id="pageCrumb">OVERVIEW</b></div><h1 id="pageTitle">Overview</h1></div>
+        <span class="demo-pill"><i></i> HISTORICAL DEMO</span>
+      </header>
+
+      <div class="banner"><b>DEMONSTRATION PROTOTYPE</b><span>Public InfoBanjir historical records and a five-day rainfall model estimate.</span></div>
+
+      <div class="global-filters">
+        <label>State<select id="stateFilter"><option value="">All states</option></select></label>
+        <label>District<select id="districtFilter"><option value="">All districts</option></select></label>
+      </div>
+
+      <section id="overview" class="page-section active-page">
+        <div class="section-heading"><div><h2>Flood outlook</h2><p>Prediction and support guidance for the selected area.</p></div></div>
+        <div id="metrics" class="metrics"></div>
+        <p class="threshold-count-note">These are mutually exclusive water-level categories: Warning excludes Danger. They are river-station threshold counts, not rainfall classifications.</p>
+        <div class="overview-grid">
+          <article class="card outlook-card">
+            <div class="card-head"><div><h3>Flood prediction</h3><p class="sub">Selected-area outlook from rainfall estimate and current river thresholds</p></div><span id="riskBadge" class="risk-badge">Loading</span></div>
+            <div id="outlookMessage" class="outlook-message"></div>
+            <div class="outlook-values"><div><small>Predicted maximum rainfall</small><strong id="rainForecast">--</strong><span>mm for 12 Nov</span></div><div><small>Highest current river level</small><strong id="waterStage">--</strong><span id="dangerThreshold">against danger threshold</span></div></div>
+            <div class="score-track"><span id="scoreBar"></span></div><div class="score-caption"><span>Demo outlook score</span><b id="scoreText">-- / 100</b></div>
+            <div class="status-key">Low: no elevated indicator | Watch: monitor | Elevated: prepare and monitor | High: check official alerts and take care.</div>
+            <p id="outlookBasis" class="outlook-basis"></p>
+          </article>
+          <article class="card guidance-card"><div class="card-head"><div><h3>Support guidance</h3><p class="sub">Practical steps for the selected area</p></div><span class="guide-icon">*</span></div><ul id="guidance"></ul><div id="stationAlerts" class="station-alerts"></div><div id="officialLinks" class="official-links"></div><div class="official-note">Threshold alerts shown here are water-level station readings. Rainfall intensity is classified separately on the Rainfall Monitoring page. Follow current instructions from local authorities.</div></article>
+        </div>
+        <article class="model-note"><b>Model overview</b><span id="modelInfo">Loading trained model details*</span><small id="modelMetric"></small></article>
+      </section>
+
+      <section id="rainfall" class="page-section">
+        <div class="section-heading"><div><h2>Rainfall monitoring</h2><p>Five-day station history, current snapshot totals, and the next-day model estimate.</p></div><span class="section-count" id="rainCount">0 stations</span></div>
+        <div class="notice rainfall-legend">One-hour rainfall classes: Light 1-10 mm; Moderate 11-30 mm; Heavy 31-60 mm; Very Heavy above 60 mm. These classes are separate from water-level Alert, Warning, and Danger thresholds.</div>
+        <article class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>STATION</th><th>DISTRICT</th><th>7 NOV</th><th>8 NOV</th><th>9 NOV</th><th>10 NOV</th><th>11 NOV</th><th>12 NOV<br>MIDNIGHT</th><th>LAST 1H</th><th>1H CLASS</th><th>12 NOV<br>MODEL EST.</th></tr></thead><tbody id="rainRows"></tbody></table></div></article>
+      </section>
+
+      <section id="water" class="page-section">
+        <div class="section-heading"><div><h2>Water-level monitoring</h2><p>Latest station levels with station-specific thresholds.</p></div><span class="section-count" id="waterCount">0 stations</span></div>
+        <article class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>STATION</th><th>DISTRICT</th><th>MAIN / SUB BASIN</th><th>LAST UPDATE</th><th>LEVEL</th><th>NORMAL</th><th>ALERT</th><th>WARNING</th><th>DANGER</th><th>STATUS</th></tr></thead><tbody id="waterRows"></tbody></table></div></article>
+      </section>
+
+      <footer>DrainGuard is a demonstration prototype. Outlooks are estimates for exploration and do not replace official warnings.</footer>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
