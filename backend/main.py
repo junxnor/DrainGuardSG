@@ -22,8 +22,8 @@ app = FastAPI(
     title="DrainGuard Singapore API",
     description="AI-Powered Urban Flood Risk Monitoring System",
     version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
 # Configure CORS - Allow all origins for deployment
@@ -38,14 +38,14 @@ app.add_middleware(
 # Import routers
 from routers import rainfall, stations, sensors, risk, recommendations
 
-# Include routers
-app.include_router(rainfall.router, prefix="/api/rainfall", tags=["Rainfall"])
-app.include_router(stations.router, prefix="/api/stations", tags=["Stations"])
-app.include_router(sensors.router, prefix="/api/sensors", tags=["Sensors"])
-app.include_router(risk.router, prefix="/api/risk", tags=["Risk Assessment"])
-app.include_router(recommendations.router, prefix="/api/recommendations", tags=["Recommendations"])
+# Include routers - Vercel will route /api/* to this service
+app.include_router(rainfall.router, prefix="/rainfall", tags=["Rainfall"])
+app.include_router(stations.router, prefix="/stations", tags=["Stations"])
+app.include_router(sensors.router, prefix="/sensors", tags=["Sensors"])
+app.include_router(risk.router, prefix="/risk", tags=["Risk Assessment"])
+app.include_router(recommendations.router, prefix="/recommendations", tags=["Recommendations"])
 
-@app.get("/api/health")
+@app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {
@@ -60,22 +60,22 @@ async def root():
     """Root endpoint"""
     return {
         "message": "Welcome to DrainGuard Singapore API",
-        "docs": "/api/docs",
-        "health": "/api/health"
+        "docs": "/docs",
+        "health": "/health"
     }
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    logger.info("Starting DrainGuard Singapore API...")
+    logger.info("Starting DrainGuard Singapore API for Vercel...")
     
-    # Initialize database
+    # Initialize in-memory database
     from database import init_database
     try:
         await init_database()
-        logger.info("Database initialized successfully")
+        logger.info("In-memory database initialized successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
+        logger.warning(f"Non-critical: Failed to initialize database: {e}")
     
     logger.info("DrainGuard Singapore API started successfully")
 

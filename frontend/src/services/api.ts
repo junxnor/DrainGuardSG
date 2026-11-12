@@ -1,9 +1,8 @@
 import axios from 'axios'
 
-// Use Vercel binding URL in production, fallback to proxy in development
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL 
-  ? `${import.meta.env.VITE_BACKEND_URL}/api`
-  : '/api'
+// In production on Vercel, /api is routed to the backend service
+// In development, Vite proxy handles /api
+const API_BASE_URL = '/api'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
