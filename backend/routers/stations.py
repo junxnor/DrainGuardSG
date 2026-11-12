@@ -23,7 +23,7 @@ class Station(BaseModel):
     longitude: float
     latitude: float
 
-@router.get("/", response_model=List[Station])
+@router.get("", response_model=List[Station])
 async def get_stations():
     """
     Get all rainfall monitoring stations

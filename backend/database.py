@@ -88,21 +88,64 @@ class RainfallReading(Base):
 
 def svy21_to_wgs84(x: float, y: float) -> tuple[float, float]:
     """
-    Convert SVY21 coordinates to WGS84 (latitude, longitude)
-    Simplified conversion for Singapore region
+    Convert SVY21 (EPSG:3414) easting/northing to WGS84 (longitude, latitude).
+    Exact inverse Transverse Mercator projection with SVY21 parameters
+    (WGS84 ellipsoid, origin 1°22'N 103°50'E, scale 1.0,
+    false easting 28001.642 m, false northing 38744.572 m).
     """
-    # Singapore region conversion constants
-    lat_origin = 1.366666  # Singapore latitude origin
-    lon_origin = 103.833333  # Singapore longitude origin
-    
-    # Approximate conversion (meters to degrees)
-    # 1 degree latitude ≈ 111,320 meters
-    # 1 degree longitude ≈ 111,320 * cos(latitude) meters
-    
-    lat = lat_origin + (y - 38744.572) / 111320
-    lon = lon_origin + (x - 28001.642) / (111320 * math.cos(math.radians(lat_origin)))
-    
-    return lon, lat
+    a = 6378137.0
+    f = 1 / 298.257223563
+    lat0 = math.radians(1 + 22 / 60)
+    lon0 = math.radians(103 + 50 / 60)
+    k0 = 1.0
+    false_n, false_e = 38744.572, 28001.642
+
+    e2 = 2 * f - f * f
+    e4, e6 = e2 * e2, e2 * e2 * e2
+    n = (a - a * math.sqrt(1 - e2)) / (a + a * math.sqrt(1 - e2))
+    n2, n3, n4 = n ** 2, n ** 3, n ** 4
+    g = a * (1 - n) * (1 - n2) * (1 + 9 * n2 / 4 + 225 * n4 / 64) * (math.pi / 180)
+
+    def meridian(lat: float) -> float:
+        a0 = 1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256
+        a2 = 3 / 8 * (e2 + e4 / 4 + 15 * e6 / 128)
+        a4 = 15 / 256 * (e4 + 3 * e6 / 4)
+        a6 = 35 * e6 / 3072
+        return a * (a0 * lat - a2 * math.sin(2 * lat) + a4 * math.sin(4 * lat) - a6 * math.sin(6 * lat))
+
+    m = (y - false_n) / k0 + meridian(lat0)
+    sigma = math.radians(m / g)
+    lat_p = (
+        sigma
+        + (3 * n / 2 - 27 * n3 / 32) * math.sin(2 * sigma)
+        + (21 * n2 / 16 - 55 * n4 / 32) * math.sin(4 * sigma)
+        + (151 * n3 / 96) * math.sin(6 * sigma)
+        + (1097 * n4 / 512) * math.sin(8 * sigma)
+    )
+
+    sin_p = math.sin(lat_p)
+    rho = a * (1 - e2) / (1 - e2 * sin_p ** 2) ** 1.5
+    nu = a / math.sqrt(1 - e2 * sin_p ** 2)
+    psi = nu / rho
+    t = math.tan(lat_p)
+    e_ = x - false_e
+    xk = e_ / (k0 * nu)
+
+    lat = lat_p - (t / (k0 * rho)) * (e_ * xk / 2) \
+        + (t / (k0 * rho)) * (e_ * xk ** 3 / 24) * (-4 * psi ** 2 + 9 * psi * (1 - t ** 2) + 12 * t ** 2) \
+        - (t / (k0 * rho)) * (e_ * xk ** 5 / 720) * (
+            8 * psi ** 4 * (11 - 24 * t ** 2) - 12 * psi ** 3 * (21 - 71 * t ** 2)
+            + 15 * psi ** 2 * (15 - 98 * t ** 2 + 15 * t ** 4) + 180 * psi * (5 * t ** 2 - 3 * t ** 4) + 360 * t ** 4
+        ) \
+        + (t / (k0 * rho)) * (e_ * xk ** 7 / 40320) * (1385 + 3633 * t ** 2 + 4095 * t ** 4 + 1575 * t ** 6)
+
+    sec = 1 / math.cos(lat_p)
+    lon = lon0 + xk * sec \
+        - xk ** 3 * sec / 6 * (psi + 2 * t ** 2) \
+        + xk ** 5 * sec / 120 * (-4 * psi ** 3 * (1 - 6 * t ** 2) + psi ** 2 * (9 - 68 * t ** 2) + 72 * psi * t ** 2 + 24 * t ** 4) \
+        - xk ** 7 * sec / 5040 * (61 + 662 * t ** 2 + 1320 * t ** 4 + 720 * t ** 6)
+
+    return math.degrees(lon), math.degrees(lat)
 
 async def init_database():
     """Initialize database and create tables"""
@@ -303,8 +346,9 @@ async def get_all_sensors() -> List[Dict[str, Any]]:
         logger.error(f"Failed to get sensors from pub_water_level_sensors: {e}")
         # Fallback to old sensors table if pub table fails
         try:
-            result = await session.execute(select(Sensor).order_by(Sensor.station_id))
-            sensors = result.scalars().all()
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(select(Sensor).order_by(Sensor.station_id))
+                sensors = result.scalars().all()
             logger.warning(f"Falling back to sensors table: {len(sensors)} sensors")
             return [
                 {

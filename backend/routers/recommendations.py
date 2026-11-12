@@ -114,7 +114,7 @@ def get_recommendations_by_risk(risk_level: str) -> List[Recommendation]:
             *base_recommendations
         ]
 
-@router.get("/", response_model=List[Recommendation])
+@router.get("", response_model=List[Recommendation])
 async def get_recommendations(
     risk_level: str = Query(default="moderate", description="Risk level: low, moderate, high, critical")
 ):

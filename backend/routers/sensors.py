@@ -23,7 +23,7 @@ class Sensor(BaseModel):
     x_svy21: float | None = None
     y_svy21: float | None = None
 
-@router.get("/", response_model=List[Sensor])
+@router.get("", response_model=List[Sensor])
 async def get_sensors():
     """
     Get all PUB water level sensors
