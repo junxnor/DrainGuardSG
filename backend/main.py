@@ -67,8 +67,11 @@ app.include_router(recommendations.router, prefix="/recommendations", tags=["Rec
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    import database
     return {
         "status": "ok",
+        "database_connected": database.USE_DATABASE,
+        "database_error": database.DATABASE_ERROR,
         "timestamp": datetime.now().isoformat(),
         "service": "DrainGuard Singapore API",
         "version": "1.0.0"

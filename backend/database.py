@@ -26,18 +26,35 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Database URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL")
+def _normalize_database_url(raw: Optional[str]) -> Optional[str]:
+    """Clean common copy/paste mistakes and force the asyncpg driver."""
+    if not raw:
+        return None
+    url = raw.strip().strip('"').strip("'").strip()
+    for prefix in ("postgres://", "postgresql://", "postgresql+psycopg2://", "postgresql+psycopg://"):
+        if url.startswith(prefix):
+            url = "postgresql+asyncpg://" + url[len(prefix):]
+            break
+    return url or None
 
+# Database URL from environment variable
+DATABASE_URL = _normalize_database_url(os.getenv("DATABASE_URL"))
+DATABASE_ERROR: Optional[str] = None  # Reported by /health; never contains the URL itself
+rainfall_readings_cache = []
+
+USE_DATABASE = False
 if not DATABASE_URL:
+    DATABASE_ERROR = "DATABASE_URL is not set"
     logger.warning("DATABASE_URL not set, using in-memory fallback")
-    USE_DATABASE = False
-    rainfall_readings_cache = []
 else:
-    USE_DATABASE = True
-    # Create async engine
-    engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
-    AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+        AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        USE_DATABASE = True
+    except Exception as e:
+        # Keep the app running so /health can report the problem instead of crashing
+        DATABASE_ERROR = f"Invalid DATABASE_URL: {type(e).__name__}"
+        logger.error(DATABASE_ERROR)
 
 # SQLAlchemy Base
 Base = declarative_base()
