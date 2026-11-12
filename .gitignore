@@ -1,35 +1,113 @@
-# Python environments and bytecode
-.venv/
-venv/
-env/
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Test and tool caches
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+*.log
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .coverage
 htmlcov/
 
-# Local secrets and environment files
-.env
-.env.*
-!.env.example
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log*
 
-# Generated OCR renders and temporary/intermediate data
-data/interim/
-data/raw/
+# Build outputs
+dist/
+build/
+*.min.js
+*.min.css
 
-# Runtime uploads and local databases
-uploads/
-*.sqlite
-*.sqlite3
-*.db
-
-# Editor and operating system files
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 .DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/drainguard.db
+
+# Model files
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+models/*.pkl
+models/*.joblib
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# OS
 Thumbs.db
+.DS_Store
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# CSV output files (keep raw data)
+data/processed/
+data/pub_sensors_wgs84.csv
+data/pub_sensors_wgs84.json
+data/rainfall_stations.csv
+data/rainfall_stations.json
+
+# Large historical rainfall data (too big for GitHub)
+data/raw/HistoricalRainfallacrossSingapore/*.csv
+data/drainguard.db
+
+# Documentation (keep only README)
+reports/
+docs/
+FINAL_STATUS.md
+IMPLEMENTATION_STATUS.md
+INSTALL_NODEJS.md
+PROJECT_COMPLETE.md
+QUICK_START.md
+SETUP_GUIDE.md
+
+# Batch files
+*.bat
