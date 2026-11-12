@@ -16,28 +16,44 @@ export interface Sensor {
   latitude: number
 }
 
+export type RiskLevel = 'low' | 'moderate' | 'high' | 'critical' | 'no_data'
+
 export interface StationRisk {
   station_id: string
   station_name: string
   longitude: number
   latitude: number
-  risk_level: 'low' | 'moderate' | 'high' | 'critical'
+  risk_level: RiskLevel
   risk_score: number
   current_rainfall: number
+  rainfall_15min: number
   rainfall_1hr: number
   rainfall_3hr: number
-  last_updated: string
+  readings_3hr: number
+  data_status: 'ok' | 'no_data'
+  data_note: string | null
+  source: string
+  observed_at: string | null
+  last_updated: string | null
 }
 
 export interface RiskOverview {
-  overall_risk: string
+  overall_risk: RiskLevel
   risk_score: number
   high_risk_count: number
   moderate_risk_count: number
   low_risk_count: number
+  critical_count: number
+  no_data_count: number
   total_stations: number
-  last_updated: string
+  stations_with_data: number
+  data_status: 'ok' | 'no_data'
+  data_note: string | null
+  source: string
+  last_updated: string | null
   high_risk_stations: string[]
+  ingestion_state: string
+  ingestion_last_success_at: string | null
 }
 
 interface AppState {
@@ -48,15 +64,18 @@ interface AppState {
   selectedStation: string | null
   loading: boolean
   error: string | null
+  now: number // updated every minute so freshness checks re-run
 
   fetchStations: () => Promise<void>
   fetchSensors: () => Promise<void>
   fetchRiskOverview: () => Promise<void>
   fetchStationRisks: () => Promise<void>
+  refreshRisk: () => Promise<void>
+  tick: () => void
   setSelectedStation: (stationId: string | null) => void
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   stations: [],
   sensors: [],
   stationRisks: [],
@@ -64,6 +83,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedStation: null,
   loading: false,
   error: null,
+  now: Date.now(),
 
   fetchStations: async () => {
     try {
@@ -101,6 +121,14 @@ export const useAppStore = create<AppState>((set) => ({
       console.error('Failed to fetch station risks:', error)
     }
   },
+
+  // Overview cards, map colours and chart all come from these two responses
+  refreshRisk: async () => {
+    await Promise.all([get().fetchRiskOverview(), get().fetchStationRisks()])
+    set({ now: Date.now() })
+  },
+
+  tick: () => set({ now: Date.now() }),
 
   setSelectedStation: (stationId) => {
     set({ selectedStation: stationId })

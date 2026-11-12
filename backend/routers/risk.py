@@ -4,7 +4,7 @@ Endpoints for rainfall-based risk assessment
 """
 
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from datetime import datetime
 import sys
@@ -21,12 +21,18 @@ class StationRisk(BaseModel):
     station_name: str
     longitude: float
     latitude: float
-    risk_level: str
+    risk_level: str  # low | moderate | high | critical | no_data
     risk_score: float
     current_rainfall: float
+    rainfall_15min: float
     rainfall_1hr: float
     rainfall_3hr: float
-    last_updated: str
+    readings_3hr: int
+    data_status: str  # ok | no_data
+    data_note: Optional[str] = None
+    source: str
+    observed_at: Optional[str] = None  # end of newest 5-min reading, Singapore time
+    last_updated: Optional[str] = None
 
 class RiskOverview(BaseModel):
     overall_risk: str
@@ -34,9 +40,17 @@ class RiskOverview(BaseModel):
     high_risk_count: int
     moderate_risk_count: int
     low_risk_count: int
+    critical_count: int
+    no_data_count: int
     total_stations: int
-    last_updated: str
+    stations_with_data: int
+    data_status: str
+    data_note: Optional[str] = None
+    source: str
+    last_updated: Optional[str] = None
     high_risk_stations: List[str]
+    ingestion_state: str = "unknown"  # ok | stalled | failing | never_succeeded | unknown
+    ingestion_last_success_at: Optional[str] = None
 
 @router.get("/overview", response_model=RiskOverview)
 async def get_risk_overview():
@@ -47,6 +61,11 @@ async def get_risk_overview():
     """
     try:
         overview = await calculate_risk_overview()
+        from database import get_ingestion_status
+        from routers.ingest import summarize_status
+        ingestion = summarize_status(await get_ingestion_status())
+        overview["ingestion_state"] = ingestion["state"]
+        overview["ingestion_last_success_at"] = ingestion.get("last_success_at")
         return overview
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to calculate risk overview: {str(e)}")

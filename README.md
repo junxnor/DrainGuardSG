@@ -1,6 +1,6 @@
 # 🌧️ DrainGuard Singapore
 
-**AI-Powered Urban Flood Risk Monitoring System**
+**Rainfall-Based Urban Flood Risk Monitoring System**
 
 [![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-green.svg)](https://fastapi.tiangolo.com/)
@@ -24,7 +24,7 @@ Singapore faces increasing urban flooding risks due to intense rainfall and clim
 DrainGuard transforms raw rainfall data into actionable intelligence through:
 
 - ✅ **Real-time monitoring** of 63 NEA rainfall stations + 328 PUB water level sensors
-- ✅ **AI-powered risk classification** (Low/Moderate/High/Critical) based on rainfall patterns
+- ✅ **Rule-based risk classification** (Low/Moderate/High/Critical) from official data.gov.sg 5-minute rainfall readings
 - ✅ **Interactive map visualization** with hyperlocal risk levels
 - ✅ **Context-aware recommendations** for different risk scenarios
 - ✅ **Mobile-responsive dashboard** for emergency access
@@ -35,7 +35,7 @@ DrainGuard transforms raw rainfall data into actionable intelligence through:
 
 ```
 ┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
-│   React + TS    │ ───> │   FastAPI + ML   │ ───> │  SQLite + Data  │
+│   React + TS    │ ───> │   FastAPI        │ ───> │  SQLite + Data  │
 │   Frontend      │ <─── │   Backend        │ <─── │  Pipeline       │
 └─────────────────┘      └──────────────────┘      └─────────────────┘
   • Leaflet Maps          • 13+ REST APIs           • 328 Sensors
@@ -247,11 +247,13 @@ pyproj: EPSG:3414 → EPSG:4326
 # Aggregate location coordinates from 2016-2024 data
 ```
 
-### 3. Risk Assessment Model
+### 3. Risk Assessment (rule-based, not machine learning)
 ```python
-# Machine Learning: Random Forest Classifier
-# Features: rainfall_mm, duration_min, location_zone
-# Output: risk_level [Low, Moderate, High, Critical]
+# Inputs: official 5-minute rainfall totals per station (data.gov.sg)
+# Components (each scaled 0-100): 5-min intensity, 15-min, 1-hour and 3-hour totals
+# Weighted sum -> score 0-100 -> Low / Moderate / High / Critical
+# Stations without a current reading are shown as "No data", never "Low"
+# Thresholds are heuristics and are not calibrated against recorded floods
 ```
 
 ---

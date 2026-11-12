@@ -9,7 +9,8 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, Float, Integer, DateTime, Text, select, func
+from sqlalchemy import Column, String, Float, Integer, BigInteger, DateTime, Text, select, func, UniqueConstraint, Index
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from dotenv import load_dotenv
 import random
 import math
@@ -102,6 +103,28 @@ class RainfallReading(Base):
     reading_value = Column(Float, nullable=False, index=True)
     reading_unit = Column(String, default="mm")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class RainfallObservation(Base):
+    """
+    Official 5-minute rainfall totals from the data.gov.sg real-time rainfall API.
+    Kept separate from rainfall_readings, which holds synthetic demo data.
+    """
+    __tablename__ = "rainfall_observations"
+    __table_args__ = (
+        UniqueConstraint("station_id", "observed_at", name="uq_rainfall_obs_station_time"),
+        Index("ix_rainfall_obs_observed_at", "observed_at"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    station_id = Column(String, nullable=False)
+    observed_at = Column(DateTime(timezone=True), nullable=False)  # end of the 5-minute period
+    value_mm = Column(Float, nullable=False)
+    station_name = Column(String)  # official name at time of reading
+    latitude = Column(Float)
+    longitude = Column(Float)
+    reading_type = Column(String)  # e.g. "TB1 Rainfall 5 Minute Total F"
+    source = Column(String, nullable=False, default="data.gov.sg")
+    ingested_at = Column(DateTime(timezone=True), server_default=func.now())
 
 def svy21_to_wgs84(x: float, y: float) -> tuple[float, float]:
     """
@@ -486,3 +509,133 @@ async def insert_rainfall_readings(readings: List[Dict[str, Any]]):
             logger.info(f"Inserted {len(readings)} rainfall readings to database")
     except Exception as e:
         logger.error(f"Failed to insert rainfall readings: {e}")
+
+# ---------------------------------------------------------------------------
+# Official rainfall observations (data.gov.sg)
+# ---------------------------------------------------------------------------
+
+async def ensure_observations_table():
+    """Create rainfall_observations if missing. Never alters or drops existing tables."""
+    if not USE_DATABASE:
+        raise RuntimeError(DATABASE_ERROR or "Database not configured")
+    async with engine.begin() as conn:
+        await conn.run_sync(
+            lambda sync_conn: RainfallObservation.__table__.create(sync_conn, checkfirst=True)
+        )
+
+async def insert_rainfall_observations(rows: List[Dict[str, Any]]) -> int:
+    """
+    Insert official observations. Rows already stored (same station_id and
+    observed_at) are skipped, so repeated runs are safe. Returns rows inserted.
+    """
+    if not rows:
+        return 0
+    if not USE_DATABASE:
+        raise RuntimeError(DATABASE_ERROR or "Database not configured")
+    inserted = 0
+    async with AsyncSessionLocal() as session:
+        for start in range(0, len(rows), 500):
+            stmt = (
+                pg_insert(RainfallObservation)
+                .values(rows[start:start + 500])
+                .on_conflict_do_nothing(constraint="uq_rainfall_obs_station_time")
+                .returning(RainfallObservation.id)
+            )
+            result = await session.execute(stmt)
+            inserted += len(result.fetchall())
+        await session.commit()
+    return inserted
+
+async def get_rainfall_observations_since(
+    since: datetime, station_ids: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    """Official observations with observed_at > since (timezone-aware), oldest first."""
+    if not USE_DATABASE:
+        raise RuntimeError(DATABASE_ERROR or "Database not configured")
+    async with AsyncSessionLocal() as session:
+        query = select(RainfallObservation).where(RainfallObservation.observed_at > since)
+        if station_ids:
+            query = query.where(RainfallObservation.station_id.in_(station_ids))
+        query = query.order_by(RainfallObservation.observed_at)
+        result = await session.execute(query)
+        return [
+            {
+                "station_id": o.station_id,
+                "observed_at": o.observed_at,
+                "value_mm": o.value_mm,
+                "station_name": o.station_name,
+            }
+            for o in result.scalars().all()
+        ]
+
+async def get_latest_observation_time() -> Optional[datetime]:
+    """Most recent observed_at across all stations, or None if the table is empty."""
+    if not USE_DATABASE:
+        raise RuntimeError(DATABASE_ERROR or "Database not configured")
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(func.max(RainfallObservation.observed_at)))
+        return result.scalar()
+
+# ---------------------------------------------------------------------------
+# Ingestion status (table created by database/migrations/002_ingestion_status.sql).
+# Plain SQL on purpose: there is no SQLAlchemy model, so startup code can never
+# create this table implicitly. If the migration hasn't run, these return None.
+# ---------------------------------------------------------------------------
+
+from sqlalchemy import text as _sql_text
+
+_STATUS_COLUMNS = (
+    "last_attempt_at, last_success_at, last_failure_at, last_error, consecutive_failures, "
+    "total_runs, total_failures, last_rows_inserted, latest_observed_at, last_duration_ms"
+)
+
+async def record_ingestion_result(
+    ok: bool,
+    error: Optional[str],
+    rows_inserted: int,
+    latest_observed_at: Optional[datetime],
+    duration_ms: int,
+) -> Optional[Dict[str, Any]]:
+    """Update the single ingestion_status row. Returns the new status, or None if unavailable."""
+    if not USE_DATABASE:
+        return None
+    sql = _sql_text(f"""
+        update public.ingestion_status set
+            last_attempt_at      = now(),
+            last_success_at      = case when :ok then now() else last_success_at end,
+            last_failure_at      = case when :ok then last_failure_at else now() end,
+            last_error           = case when :ok then last_error else :error end,
+            consecutive_failures = case when :ok then 0 else consecutive_failures + 1 end,
+            total_runs           = total_runs + 1,
+            total_failures       = total_failures + case when :ok then 0 else 1 end,
+            last_rows_inserted   = :rows,
+            latest_observed_at   = greatest(latest_observed_at, cast(:latest as timestamptz)),
+            last_duration_ms     = :duration,
+            updated_at           = now()
+        where id = 1
+        returning {_STATUS_COLUMNS}
+    """)
+    try:
+        async with AsyncSessionLocal() as session:
+            row = (await session.execute(sql, {
+                "ok": ok, "error": error, "rows": rows_inserted,
+                "latest": latest_observed_at, "duration": duration_ms,
+            })).mappings().first()
+            await session.commit()
+            return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Could not record ingestion status ({type(e).__name__})")
+        return None
+
+async def get_ingestion_status() -> Optional[Dict[str, Any]]:
+    """Read the ingestion_status row, or None if the table doesn't exist yet."""
+    if not USE_DATABASE:
+        return None
+    try:
+        async with AsyncSessionLocal() as session:
+            row = (await session.execute(
+                _sql_text(f"select {_STATUS_COLUMNS} from public.ingestion_status where id = 1")
+            )).mappings().first()
+            return dict(row) if row else None
+    except Exception:
+        return None

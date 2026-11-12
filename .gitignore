@@ -113,3 +113,8 @@ HACKATHON_SUBMISSION.md
 
 # Batch files
 *.bat
+# Local Supabase backups (contain database rows)
+backups/
+# Any other .env variant (backups, local copies) except the committed template
+.env.*
+!.env.example

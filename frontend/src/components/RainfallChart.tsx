@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useAppStore } from '../store/appStore'
+import { freshStationRisks } from '../utils/freshness'
 
 export default function RainfallChart() {
-  const { stationRisks } = useAppStore()
+  const { stationRisks: rawRisks, now } = useAppStore()
+  const stationRisks = useMemo(() => freshStationRisks(rawRisks, now), [rawRisks, now])
   const [chartData, setChartData] = useState<any[]>([])
 
+  const reporting = useMemo(() => stationRisks.filter((s) => s.data_status === 'ok'), [stationRisks])
+
   useEffect(() => {
-    if (stationRisks.length > 0) {
-      // Sort by risk score and take top 10
-      const topStations = [...stationRisks]
+    if (reporting.length > 0) {
+      // Stations with current official data, sorted by risk score, top 10
+      const topStations = [...reporting]
         .sort((a, b) => b.risk_score - a.risk_score)
         .slice(0, 10)
         .map((station) => ({
@@ -20,8 +24,22 @@ export default function RainfallChart() {
         }))
 
       setChartData(topStations)
+    } else {
+      setChartData([])
     }
-  }, [stationRisks])
+  }, [reporting])
+
+  // Risk data has loaded but no station has current official readings
+  if (stationRisks.length > 0 && reporting.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center text-sm text-slate-600 px-4">
+          <p className="font-medium text-slate-800">No current rainfall data</p>
+          <p className="mt-1">{stationRisks[0].data_note || 'Official readings are unavailable right now.'}</p>
+        </div>
+      </div>
+    )
+  }
 
   if (chartData.length === 0) {
     return (
@@ -37,7 +55,10 @@ export default function RainfallChart() {
   return (
     <div className="h-full">
       <div className="text-sm text-slate-600 mb-4">
-        <p>Top 10 stations by accumulated rainfall</p>
+        <p>Top stations by risk score · official data.gov.sg readings</p>
+        {chartData.every((d) => d['3hr'] === 0) && (
+          <p className="text-xs mt-1">No rain recorded at these stations in the last 3 hours.</p>
+        )}
       </div>
       <ResponsiveContainer width="100%" height="85%">
         <BarChart

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet'
 import L from 'leaflet'
 import { useAppStore } from '../store/appStore'
+import { freshStationRisks, formatSgtTime } from '../utils/freshness'
 import 'leaflet/dist/leaflet.css'
 
 // Fix for default marker icons in React-Leaflet
@@ -29,8 +30,10 @@ const getRiskColor = (riskLevel: string) => {
     case 'moderate':
       return '#f59e0b'
     case 'low':
-    default:
       return '#10b981'
+    case 'no_data':
+    default:
+      return '#94a3b8'
   }
 }
 
@@ -74,6 +77,10 @@ function MapLegend() {
           <div className="w-4 h-4 rounded-full bg-risk-critical border-2 border-white"></div>
           <span className="text-xs">Critical (76-100)</span>
         </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 rounded-full bg-slate-400 border-2 border-white"></div>
+          <span className="text-xs">No current data</span>
+        </div>
       </div>
       <div className="mt-3 pt-3 border-t border-slate-200">
         <div className="flex items-center space-x-2">
@@ -86,7 +93,8 @@ function MapLegend() {
 }
 
 export default function MapComponent() {
-  const { stations, sensors, stationRisks, fetchStationRisks } = useAppStore()
+  const { stations, sensors, stationRisks: rawRisks, fetchStationRisks, now } = useAppStore()
+  const stationRisks = useMemo(() => freshStationRisks(rawRisks, now), [rawRisks, now])
   const [mapLoaded, setMapLoaded] = useState(false)
 
   // Singapore center coordinates
@@ -102,7 +110,7 @@ export default function MapComponent() {
   // Get risk level for a station
   const getStationRisk = (stationId: string) => {
     const risk = stationRisks.find((r) => r.station_id === stationId)
-    return risk?.risk_level || 'low'
+    return risk?.risk_level || 'no_data'
   }
 
   const getStationRiskData = (stationId: string) => {
@@ -139,7 +147,7 @@ export default function MapComponent() {
                   <h3 className="font-semibold text-base mb-2">{station.station_name}</h3>
                   <div className="text-sm space-y-1">
                     <p><span className="font-medium">Station ID:</span> {station.station_id}</p>
-                    {riskData && (
+                    {riskData && riskData.data_status === 'ok' && (
                       <>
                         <p><span className="font-medium">Risk Level:</span> 
                           <span className={`ml-1 px-2 py-0.5 rounded text-xs font-medium risk-${riskLevel}`}>
@@ -147,10 +155,19 @@ export default function MapComponent() {
                           </span>
                         </p>
                         <p><span className="font-medium">Risk Score:</span> {riskData.risk_score}</p>
-                        <p><span className="font-medium">Current Rainfall:</span> {riskData.current_rainfall} mm</p>
+                        <p><span className="font-medium">Last 5 min:</span> {riskData.current_rainfall} mm</p>
                         <p><span className="font-medium">1hr Total:</span> {riskData.rainfall_1hr} mm</p>
                         <p><span className="font-medium">3hr Total:</span> {riskData.rainfall_3hr} mm</p>
+                        <p className="text-xs text-slate-500 pt-1">
+                          Source: {riskData.source}
+                          {formatSgtTime(riskData.observed_at) ? ` · as of ${formatSgtTime(riskData.observed_at)}` : ''}
+                        </p>
                       </>
+                    )}
+                    {(!riskData || riskData.data_status !== 'ok') && (
+                      <p className="text-slate-600">
+                        No current rainfall data{riskData?.data_note ? `: ${riskData.data_note}` : ''}
+                      </p>
                     )}
                   </div>
                 </div>

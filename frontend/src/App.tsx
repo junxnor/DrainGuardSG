@@ -1,14 +1,21 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Cloud, AlertTriangle, Droplets, Activity } from 'lucide-react'
 import MapComponent from './components/MapComponent.tsx'
 import RiskOverview from './components/RiskOverview.tsx'
 import RainfallChart from './components/RainfallChart.tsx'
 import RecommendationsPanel from './components/RecommendationsPanel.tsx'
 import { useAppStore } from './store/appStore.ts'
+import { freshOverview, formatSgtTime } from './utils/freshness.ts'
 import './App.css'
 
+// New official readings arrive every 5 minutes
+const REFRESH_MS = 5 * 60 * 1000
+const FRESHNESS_TICK_MS = 60 * 1000
+
 function App() {
-  const { fetchStations, fetchSensors, fetchRiskOverview, error } = useAppStore()
+  const { fetchStations, fetchSensors, fetchRiskOverview, refreshRisk, tick, riskOverview, now, error } = useAppStore()
+  const overview = useMemo(() => freshOverview(riskOverview, now), [riskOverview, now])
+  const dataTime = overview?.data_status === 'ok' ? formatSgtTime(overview.last_updated) : null
 
   useEffect(() => {
     // Initial data fetch
@@ -21,13 +28,18 @@ function App() {
     }
     loadData()
 
-    // Refresh risk data every 5 minutes
-    const interval = setInterval(() => {
-      fetchRiskOverview()
-    }, 5 * 60 * 1000)
+    // Refresh risk cards, map colours and chart together
+    const refresh = setInterval(() => {
+      refreshRisk()
+    }, REFRESH_MS)
+    // Re-check data age between refreshes so old data is never shown as current
+    const freshness = setInterval(tick, FRESHNESS_TICK_MS)
 
-    return () => clearInterval(interval)
-  }, [fetchStations, fetchSensors, fetchRiskOverview])
+    return () => {
+      clearInterval(refresh)
+      clearInterval(freshness)
+    }
+  }, [fetchStations, fetchSensors, fetchRiskOverview, refreshRisk, tick])
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -41,13 +53,19 @@ function App() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">DrainGuard Singapore</h1>
-                <p className="text-sm text-slate-600">AI-Powered Rainfall Risk Monitoring</p>
+                <p className="text-sm text-slate-600">Rainfall-Based Flood Risk Monitoring</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 text-sm text-slate-600">
                 <Activity className="w-4 h-4" />
-                <span>Live Monitoring</span>
+                <span>
+                  {!overview
+                    ? 'Loading rainfall data…'
+                    : dataTime
+                      ? `Rainfall data as of ${dataTime}`
+                      : 'Rainfall data unavailable'}
+                </span>
               </div>
             </div>
           </div>

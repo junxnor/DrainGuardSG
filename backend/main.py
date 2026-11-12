@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="DrainGuard Singapore API",
-    description="AI-Powered Urban Flood Risk Monitoring System",
+    description="Rainfall-based urban flood risk monitoring using official data.gov.sg readings",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -55,7 +55,7 @@ async def strip_api_prefix(request: Request, call_next):
     return response
 
 # Import routers
-from routers import rainfall, stations, sensors, risk, recommendations
+from routers import rainfall, stations, sensors, risk, recommendations, ingest
 
 # Include routers - Vercel will route /api/* to this service
 app.include_router(rainfall.router, prefix="/rainfall", tags=["Rainfall"])
@@ -63,15 +63,20 @@ app.include_router(stations.router, prefix="/stations", tags=["Stations"])
 app.include_router(sensors.router, prefix="/sensors", tags=["Sensors"])
 app.include_router(risk.router, prefix="/risk", tags=["Risk Assessment"])
 app.include_router(recommendations.router, prefix="/recommendations", tags=["Recommendations"])
+app.include_router(ingest.router, prefix="/ingest", tags=["Ingestion"])
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     import database
+    from routers.ingest import summarize_status
+    ingestion = summarize_status(await database.get_ingestion_status())
     return {
         "status": "ok",
         "database_connected": database.USE_DATABASE,
         "database_error": database.DATABASE_ERROR,
+        "ingestion": {k: ingestion.get(k) for k in
+                      ("state", "healthy", "last_success_at", "latest_observed_at", "consecutive_failures")},
         "timestamp": datetime.now().isoformat(),
         "service": "DrainGuard Singapore API",
         "version": "1.0.0"
