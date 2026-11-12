@@ -26,10 +26,10 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
-# Configure CORS
+# Configure CORS - Allow all origins for deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React dev servers
+    allow_origins=["*"],  # Allow all origins for hackathon demo
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

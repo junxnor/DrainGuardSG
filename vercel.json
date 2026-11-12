@@ -1,0 +1,39 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "backend": {
+      "root": "backend",
+      "framework": "fastapi",
+      "runtime": "python3.11",
+      "buildCommand": "pip install -r requirements-deploy.txt",
+      "entrypoint": "main.py"
+    },
+    "frontend": {
+      "root": "frontend",
+      "framework": "vite",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "backend",
+          "format": "url",
+          "env": "VITE_BACKEND_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": {
+        "service": "backend",
+        "path": "/api/:path*"
+      }
+    },
+    {
+      "source": "/:path*",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ]
+}
