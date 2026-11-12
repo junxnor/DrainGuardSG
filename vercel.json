@@ -3,8 +3,7 @@
   "services": {
     "backend": {
       "root": "backend",
-      "framework": "fastapi",
-      "runtime": "python3.9"
+      "framework": "fastapi"
     },
     "frontend": {
       "root": "frontend",
