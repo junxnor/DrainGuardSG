@@ -8,7 +8,7 @@ import { useAppStore } from './store/appStore.ts'
 import './App.css'
 
 function App() {
-  const { fetchStations, fetchSensors, fetchRiskOverview, loading, error } = useAppStore()
+  const { fetchStations, fetchSensors, fetchRiskOverview, error } = useAppStore()
 
   useEffect(() => {
     // Initial data fetch
