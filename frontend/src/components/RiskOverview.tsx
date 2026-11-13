@@ -1,11 +1,9 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { AlertTriangle, Cloud, Droplets, TrendingUp } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
-import { freshOverview } from '../utils/freshness'
 
 export default function RiskOverview() {
-  const { riskOverview: rawOverview, fetchRiskOverview, now } = useAppStore()
-  const riskOverview = useMemo(() => freshOverview(rawOverview, now), [rawOverview, now])
+  const { riskOverview, fetchRiskOverview } = useAppStore()
 
   useEffect(() => {
     fetchRiskOverview()
@@ -24,12 +22,8 @@ export default function RiskOverview() {
     )
   }
 
-  const noData = riskOverview.data_status === 'no_data'
-
   const getRiskColor = (level: string) => {
     switch (level) {
-      case 'no_data':
-        return 'bg-slate-100 text-slate-700 border-slate-300'
       case 'critical':
         return 'bg-red-100 text-red-800 border-red-300'
       case 'high':
@@ -52,12 +46,8 @@ export default function RiskOverview() {
             <h3 className="text-sm font-medium">Overall Risk</h3>
           </div>
         </div>
-        <p className="text-3xl font-bold capitalize">{noData ? 'No data' : riskOverview.overall_risk}</p>
-        <p className="text-xs mt-1 opacity-75">
-          {noData
-            ? riskOverview.data_note || 'Official rainfall data unavailable'
-            : `Score: ${riskOverview.risk_score.toFixed(1)}/100 · ${riskOverview.stations_with_data}/${riskOverview.total_stations} stations reporting`}
-        </p>
+        <p className="text-3xl font-bold capitalize">{riskOverview.overall_risk}</p>
+        <p className="text-xs mt-1 opacity-75">Score: {riskOverview.risk_score.toFixed(1)}/100</p>
       </div>
 
       {/* High Risk Areas */}

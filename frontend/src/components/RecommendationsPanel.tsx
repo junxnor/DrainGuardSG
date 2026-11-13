@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle, Info, AlertTriangle, Eye, Package, Droplet, Wrench, Map, Cloud, Activity } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import { api } from '../services/api'
-import { freshOverview } from '../utils/freshness'
 
 interface Recommendation {
   category: string
@@ -58,20 +57,16 @@ const getPriorityBadge = (priority: string) => {
 }
 
 export default function RecommendationsPanel() {
-  const { riskOverview: rawOverview, now } = useAppStore()
-  const riskOverview = useMemo(() => freshOverview(rawOverview, now), [rawOverview, now])
+  const { riskOverview } = useAppStore()
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
 
-  const level = riskOverview?.overall_risk
-
-  // Reload only when the risk level changes, not on every 5-minute refresh
   useEffect(() => {
     const fetchRecommendations = async () => {
-      if (level) {
+      if (riskOverview) {
         try {
           setLoading(true)
-          const recs = await api.getRecommendations(level)
+          const recs = await api.getRecommendations(riskOverview.overall_risk)
           setRecommendations(recs)
         } catch (error) {
           console.error('Failed to fetch recommendations:', error)
@@ -82,7 +77,7 @@ export default function RecommendationsPanel() {
     }
 
     fetchRecommendations()
-  }, [level])
+  }, [riskOverview])
 
   if (loading) {
     return (
@@ -109,9 +104,7 @@ export default function RecommendationsPanel() {
         </h3>
         {riskOverview && (
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityBadge(riskOverview.overall_risk)}`}>
-            {riskOverview.overall_risk === 'no_data'
-              ? 'General advice · rainfall data unavailable'
-              : `Based on ${riskOverview.overall_risk} risk level`}
+            Based on {riskOverview.overall_risk} risk level
           </span>
         )}
       </div>

@@ -95,19 +95,6 @@ def get_recommendations_by_risk(risk_level: str) -> List[Recommendation]:
             *base_recommendations
         ]
     
-    elif risk_level.lower() == "no_data":
-        # Rainfall data unavailable: don't imply conditions are safe
-        return [
-            Recommendation(
-                category="information",
-                priority="medium",
-                title="Rainfall Data Unavailable",
-                description="Current rainfall readings could not be loaded. Check official sources before relying on this dashboard",
-                icon="info"
-            ),
-            *base_recommendations
-        ]
-
     else:  # Low risk
         return [
             Recommendation(
@@ -137,7 +124,7 @@ async def get_recommendations(
     - **risk_level**: Current risk level (low, moderate, high, critical)
     """
     try:
-        valid_levels = ["low", "moderate", "high", "critical", "no_data"]
+        valid_levels = ["low", "moderate", "high", "critical"]
         if risk_level.lower() not in valid_levels:
             raise HTTPException(
                 status_code=400, 
